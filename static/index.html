@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ECC 인터넷 뱅킹</title>
+  <style>
+    body {
+      font-family: 'Apple SD Gothic Neo', sans-serif;
+      background: #f0f4f8;
+      margin: 0; padding: 20px;
+      color: #333;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    h1 {
+      text-align: center;
+      color: #007aff;
+      margin-bottom: 30px;
+    }
+    section {
+      background: white;
+      padding: 20px;
+      margin-bottom: 25px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    input, button {
+      font-size: 1rem;
+      padding: 10px;
+      margin-top: 8px;
+      width: 100%;
+      box-sizing: border-box;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+    }
+    button {
+      background-color: #007aff;
+      border: none;
+      color: white;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+    button:hover {
+      background-color: #005bb5;
+    }
+    label {
+      font-weight: 600;
+      display: block;
+      margin-top: 12px;
+    }
+    #message {
+      margin-top: 10px;
+      padding: 10px;
+      border-radius: 8px;
+      display: none;
+    }
+    #message.success {
+      background-color: #d4edda;
+      color: #155724;
+    }
+    #message.error {
+      background-color: #f8d7da;
+      color: #721c24;
+    }
+  </style>
+</head>
+<body>
+  <h1>ECC 인터넷 뱅킹 시스템</h1>
+
+  <section id="register-section">
+    <h2>회원가입</h2>
+    <label for="registerId">아이디</label>
+    <input type="text" id="registerId" placeholder="아이디 입력" />
+    <label for="registerPw">비밀번호</label>
+    <input type="password" id="registerPw" placeholder="비밀번호 입력" />
+    <button onclick="register()">회원가입</button>
+  </section>
+
+  <section id="login-section">
+    <h2>로그인</h2>
+    <label for="loginId">아이디</label>
+    <input type="text" id="loginId" placeholder="아이디 입력" />
+    <label for="loginPw">비밀번호</label>
+    <input type="password" id="loginPw" placeholder="비밀번호 입력" />
+    <button onclick="login()">로그인</button>
+  </section>
+
+  <section id="account-section" style="display:none;">
+    <h2>내 계좌</h2>
+    <p>잔액: <span id="balance">0</span> 원</p>
+
+    <h3>송금</h3>
+    <label for="sendTo">받는 사람 ID</label>
+    <input type="text" id="sendTo" placeholder="받는 사람 아이디 입력" />
+    <label for="sendAmount">금액</label>
+    <input type="number" id="sendAmount" placeholder="금액 입력" />
+    <button onclick="sendMoney()">송금하기</button>
+
+    <h3>대출</h3>
+    <label for="loanAmount">대출 금액</label>
+    <input type="number" id="loanAmount" placeholder="대출 금액 입력" />
+    <button onclick="requestLoan()">대출 신청</button>
+  </section>
+  
+  <section id="stock-section" style="display:none;">
+  <h3>주식 거래</h3>
+
+  <label for="stockUserId">사용자 ID</label>
+  <input type="text" id="stockUserId" placeholder="사용자 ID 입력" />
+
+  <label for="stockSymbol">종목</label>
+  <select id="stockSymbol">
+    <option value="AAPL">AAPL</option>
+    <option value="TSLA">TSLA</option>
+    <option value="GOOG">GOOG</option>
+  </select>
+
+  <label for="stockQuantity">수량</label>
+  <input type="number" id="stockQuantity" placeholder="수량 입력" />
+
+  <label for="stockAction">거래 방식</label>
+  <select id="stockAction">
+    <option value="buy">매수</option>
+    <option value="sell">매도</option>
+  </select>
+
+  <button onclick="tradeStock()">거래 실행</button>
+
+  <p id="stockTradeResult"></p>
+</section>
+
+  <div id="message"></div>
+
+  <script>
+    let currentUserId = null;
+
+    function showMessage(msg, isSuccess=true) {
+      const messageDiv = document.getElementById("message");
+      messageDiv.textContent = msg;
+      messageDiv.style.display = "block";
+      messageDiv.className = isSuccess ? "success" : "error";
+      setTimeout(() => {
+        messageDiv.style.display = "none";
+      }, 4000);
+    }
+
+    // 회원가입
+    function register() {
+      const id = document.getElementById("registerId").value.trim();
+      const pw = document.getElementById("registerPw").value.trim();
+      if (!id || !pw) {
+        showMessage("아이디와 비밀번호를 모두 입력하세요.", false);
+        return;
+      }
+
+    fetch("http://127.0.0.1:5000/api/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, pw }),
+        })
+    .then(res => res.json())
+    .then(data => {
+      showMessage(data.msg, data.msg === "회원가입 성공");
+      if(data.msg === "회원가입 성공") {
+        document.getElementById("registerId").value = "";
+        document.getElementById("registerPw").value = "";
+      }
+    })
+    .catch(() => showMessage("서버와 연결할 수 없습니다.", false));
+}
+
+    // 로그인
+    function login() {
+      const id = document.getElementById("loginId").value.trim();
+      const pw = document.getElementById("loginPw").value.trim();
+      if (!id || !pw) {
+        showMessage("아이디와 비밀번호를 모두 입력하세요.", false);
+        return;
+      }
+
+      fetch("http://localhost:5000/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, pw }),
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.msg === "로그인 성공") {
+          currentUserId = id;
+          showMessage(data.msg);
+          document.getElementById("loginId").value = "";
+          document.getElementById("loginPw").value = "";
+          document.getElementById("account-section").style.display = "block";
+          document.getElementById("stock-section").style.display = "block";
+          fetchBalance();
+        } else {
+          showMessage(data.msg, false);
+        }
+      })
+      .catch(() => showMessage("서버와 연결할 수 없습니다.", false));
+    }
+
+    // 잔액 조회
+    function fetchBalance() {
+      if (!currentUserId) return;
+
+      fetch(`http://localhost:5000/api/balance/${currentUserId}`)
+        .then(res => res.json())
+        .then(data => {
+          if(data.balance !== undefined) {
+            document.getElementById("balance").textContent = data.balance;
+          }
+        })
+        .catch(() => showMessage("잔액 조회 실패", false));
+    }
+
+    // 송금
+    function sendMoney() {
+      const to = document.getElementById("sendTo").value.trim();
+      const amount = Number(document.getElementById("sendAmount").value);
+      if (!to || !amount || amount <= 0) {
+        showMessage("받는 사람과 올바른 금액을 입력하세요.", false);
+        return;
+      }
+
+      fetch("http://localhost:5000/api/transfer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ from: currentUserId, to, amount }),
+      })
+      .then(res => res.json())
+      .then(data => {
+        showMessage(data.msg, data.msg === "송금 성공");
+        if (data.msg === "송금 성공") {
+          fetchBalance();
+          document.getElementById("sendTo").value = "";
+          document.getElementById("sendAmount").value = "";
+        }
+      })
+      .catch(() => showMessage("서버와 연결할 수 없습니다.", false));
+    }
+
+    // 대출
+    function requestLoan() {
+      const amount = Number(document.getElementById("loanAmount").value);
+      if (!amount || amount <= 0) {
+        showMessage("올바른 대출 금액을 입력하세요.", false);
+        return;
+      }
+
+      fetch("http://localhost:5000/api/loan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: currentUserId, amount }),
+      })
+      .then(res => res.json())
+      .then(data => {
+        showMessage(data.msg, data.msg === "대출 완료");
+        if(data.msg === "대출 완료") {
+          fetchBalance();
+          document.getElementById("loanAmount").value = "";
+        }
+      })
+      .catch(() => showMessage("서버와 연결할 수 없습니다.", false));
+    }
+    function tradeStock() {
+    const id = document.getElementById("stockUserId").value;
+    const symbol = document.getElementById("stockSymbol").value;
+    const quantity = parseInt(document.getElementById("stockQuantity").value);
+    const action = document.getElementById("stockAction").value;
+
+    if (!id || isNaN(quantity) || quantity <= 0) {
+      document.getElementById("stockTradeResult").innerText = "입력값을 확인하세요.";
+      return;
+    }
+
+    fetch("http://localhost:5000/api/stock/trade", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, symbol, quantity, action })
+    })
+    .then(res => res.json())
+    .then(data => {
+      document.getElementById("stockTradeResult").innerText = data.msg;
+    })
+    .catch(err => {
+      document.getElementById("stockTradeResult").innerText = "에러 발생: " + err;
+    });
+  }
+  </script>
+</body>
+</html>
