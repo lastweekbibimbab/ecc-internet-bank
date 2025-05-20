@@ -236,19 +236,19 @@ def update_stock_prices():
     while True:
         try:
             stocks = pd.read_excel("stock_data.xlsx")
-            # 각 주식 가격을 -2%~+2% 랜덤 변동
+            # 각 주식 가격을 -5%~+5% 랜덤 변동
             for idx, row in stocks.iterrows():
-                change = random.uniform(-0.10, 0.10)
+                change = random.uniform(-0.05, 0.05)
                 new_price = max(1, row["price"] * (1 + change))
                 stocks.at[idx, "price"] = round(new_price, 2)
             stocks.to_excel("stock_data.xlsx", index=False)
             shutil.copy("stock_data.xlsx", os.path.join("static", "stock_data.xlsx"))  # static 폴더도 갱신
         except Exception as e:
             print("Stock price update error:", e)
-        time.sleep(5)  # 5초마다 가격 갱신
+        time.sleep(120)  # 5초마다 가격 갱신
 
-INTEREST_RATE = 0.01  # 1% (원하는 이자율로 조정)
-INTEREST_INTERVAL = 60  # 초 단위, 예: 60초마다 이자 부과
+INTEREST_RATE = 0.58  # 5.8% (원하는 이자율로 조정)
+INTEREST_INTERVAL = 120  # 초 단위
 
 def apply_loan_interest():
     while True:
