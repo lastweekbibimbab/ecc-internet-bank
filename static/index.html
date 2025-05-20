@@ -331,7 +331,7 @@
 
     // 주식 가격 실시간 갱신
     function fetchStockPrices() {
-      fetch("http://localhost:5000/static/stock_data.xlsx")
+      fetch("http://34.64.190.35/static/stock_data.xlsx")
         .then(response => response.arrayBuffer())
         .then(buffer => {
           // XLSX 파싱을 위해 SheetJS 라이브러리 필요
