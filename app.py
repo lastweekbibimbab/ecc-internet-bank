@@ -14,8 +14,6 @@ import datetime
 app = Flask(__name__)
 CORS(app, supports_credentials=True)
 
-curve = registry.get_curve('secp256r1')
-
 # 파일 초기화
 if not os.path.exists("users.xlsx"):
     pd.DataFrame(columns=["id", "pw", "balance", "private_key", "public_key"]).to_excel("users.xlsx", index=False)
