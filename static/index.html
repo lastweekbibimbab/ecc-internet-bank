@@ -124,7 +124,10 @@
       <option value="TSLA">TSLA</option>
       <option value="GOOG">GOOG</option>
     </select>
-
+    
+    <label>내 주식 보유 현황</label>
+    <ul id="my-stocks-list"></ul>
+    
     <label for="stockQuantity">수량</label>
     <input type="number" id="stockQuantity" placeholder="수량 입력" />
 
@@ -169,7 +172,7 @@
         return;
       }
 
-    fetch("http://34.64.190.35/api/register", {
+    fetch("http://127.0.0.1:5000/api/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id, pw }),
@@ -194,7 +197,7 @@
         return;
       }
 
-      fetch("http://34.64.190.35/api/login", {
+      fetch("http://localhost:5000/api/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id, pw }),
@@ -206,9 +209,10 @@
           showMessage(data.msg);
           document.getElementById("loginId").value = "";
           document.getElementById("loginPw").value = "";
-          document.getElementById("account-section").style.display = "block";
+          document.getElementById("account-section").style.display = "block"
           showStockSection();
           fetchBalance();
+          onLoginSuccess(); // 로그인 성공 시 추가 작업 수행
         } else {
           showMessage(data.msg, false);
         }
@@ -219,7 +223,7 @@
     // 잔액 조회
     function fetchBalance() {
       if (!currentUserId) return;
-      fetch(`http://34.64.190.35/api/balance/${currentUserId}`)
+      fetch(`http://localhost:5000/api/balance/${currentUserId}`)
         .then(res => res.json())
         .then(data => {
           if (data.balance !== undefined) {
@@ -241,7 +245,7 @@
         return;
       }
 
-      fetch("http://34.64.190.35/api/transfer", {
+      fetch("http://localhost:5000/api/transfer", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ from: currentUserId, to, amount }),
@@ -265,7 +269,7 @@
         showMessage("올바른 대출 금액을 입력하세요.", false);
         return;
       }
-      fetch("http://34.64.190.35/api/loan", {
+      fetch("http://localhost:5000/api/loan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: currentUserId, amount }),
@@ -288,7 +292,7 @@
         showMessage("올바른 상환 금액을 입력하세요.", false);
         return;
       }
-      fetch("http://34.64.190.35/api/repay_loan", {
+      fetch("http://localhost:5000/api/repay_loan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: currentUserId, amount }),
@@ -309,7 +313,7 @@
   const action = document.getElementById("stockAction").value;
   const quantity = Number(document.getElementById("stockQuantity").value);
 
-  fetch("http://34.64.190.35/api/stock/trade", {
+  fetch("http://localhost:5000/api/stock/trade", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -331,7 +335,7 @@
 
     // 주식 가격 실시간 갱신
     function fetchStockPrices() {
-      fetch("http://34.64.190.35/static/stock_data.xlsx")
+      fetch("http://localhost:5000/static/stock_data.xlsx")
         .then(response => response.arrayBuffer())
         .then(buffer => {
           // XLSX 파싱을 위해 SheetJS 라이브러리 필요
@@ -359,6 +363,50 @@
       document.getElementById("stock-section").style.display = "block";
       fetchStockPrices();
     }
+
+    // 로그인 후 계좌 화면이 보일 때만 주기적으로 잔액/대출금액 갱신
+let balanceInterval = null;
+
+function startBalanceAutoRefresh() {
+  if (balanceInterval) clearInterval(balanceInterval);
+  balanceInterval = setInterval(() => {
+    if (document.getElementById("account-section").style.display !== "none") {
+      fetchBalance();
+    }
+  }, 5000); // 5초마다 갱신 (원하면 더 짧게/길게 조정)
+}
+
+// 로그인 성공 시 호출
+function onLoginSuccess() {
+  document.getElementById("account-section").style.display = "block";
+  fetchBalance();
+  fetchMyStocks(); // 추가: 로그인 시 주식 보유 현황도 조회
+  startBalanceAutoRefresh();
+}
+
+// 내 주식 보유 현황 조회
+function fetchMyStocks() {
+  fetch(`http://localhost:5000/api/user_stocks/${currentUserId}`)
+    .then(res => res.json())
+    .then(data => {
+      const ul = document.getElementById("my-stocks-list");
+      ul.innerHTML = "";
+      if (data.stocks && data.stocks.length > 0) {
+        data.stocks.forEach(stock => {
+          ul.innerHTML += `<li>${stock.symbol}: ${stock.quantity}주</li>`;
+        });
+      } else {
+        ul.innerHTML = "<li>보유 주식 없음</li>";
+      }
+    });
+}
+
+// 상장폐지 종목 user_stocks에서도 삭제
+if (to_delist) {
+    user_stocks = pd.read_excel("user_stocks.xlsx")
+    user_stocks = user_stocks[~user_stocks["symbol"].isin(to_delist)]
+    user_stocks.to_excel("user_stocks.xlsx", index=False)
+}
   </script>
   <!-- SheetJS 라이브러리 추가 -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
