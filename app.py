@@ -269,4 +269,8 @@ threading.Thread(target=update_stock_prices, daemon=True).start()
 threading.Thread(target=apply_loan_interest, daemon=True).start()
 
 if __name__ == "__main__":
+    thread = threading.Thread(target=update_stock_data)
+    thread.daemon = True  # 메인 종료 시 같이 종료되게
+    thread.start()
+    
     app.run(host='0.0.0.0', port=5000)
