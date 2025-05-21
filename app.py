@@ -14,6 +14,8 @@ import datetime
 app = Flask(__name__)
 CORS(app, supports_credentials=True)
 
+curve = registry.get_curve('secp256r1')
+
 # 파일 초기화
 if not os.path.exists("users.xlsx"):
     pd.DataFrame(columns=["id", "pw", "balance", "private_key", "public_key"]).to_excel("users.xlsx", index=False)
@@ -35,6 +37,9 @@ if not os.path.exists("stock_data.xlsx"):
 if not os.path.exists("static"):
     os.makedirs("static")
 shutil.copy("stock_data.xlsx", os.path.join("static", "stock_data.xlsx"))
+
+if not os.path.exists("user_stocks.xlsx"):
+    pd.DataFrame(columns=["id", "symbol", "quantity"]).to_excel("user_stocks.xlsx", index=False)
 
 def generate_key_pair():
     private_key = secrets.randbelow(curve.field.n)
@@ -139,6 +144,7 @@ def trade_stock():
     data = request.json
     users = pd.read_excel("users.xlsx")
     stocks = pd.read_excel("stock_data.xlsx")
+    user_stocks = pd.read_excel("user_stocks.xlsx")
 
     user = users[users["id"] == data["id"]]
     if user.empty:
@@ -155,17 +161,34 @@ def trade_stock():
     total = price * qty
     balance = float(user.iloc[0]["balance"])
 
+    user_stock_row = user_stocks[(user_stocks["id"] == data["id"]) & (user_stocks["symbol"] == symbol)]
+    current_qty = int(user_stock_row.iloc[0]["quantity"]) if not user_stock_row.empty else 0
+
     if action == "buy":
         if balance < total:
             return jsonify(msg="잔액 부족")
         users.loc[users["id"] == data["id"], "balance"] = balance - total
         stocks.loc[stocks["symbol"] == symbol, "price"] = price * 1.01  # 가격 상승
-    else:
+        # 보유량 증가
+        if user_stock_row.empty:
+            user_stocks = pd.concat([user_stocks, pd.DataFrame([{
+                "id": data["id"], "symbol": symbol, "quantity": qty
+            }])], ignore_index=True)
+        else:
+            user_stocks.loc[(user_stocks["id"] == data["id"]) & (user_stocks["symbol"] == symbol), "quantity"] = current_qty + qty
+    else:  # sell
+        if user_stock_row.empty:
+            return jsonify(msg="보유 내역이 없습니다.")
+        if current_qty < qty:
+            return jsonify(msg="보유 주식 수량 부족")
         users.loc[users["id"] == data["id"], "balance"] = balance + total
         stocks.loc[stocks["symbol"] == symbol, "price"] = price * 0.99  # 가격 하락
+        # 보유량 감소
+        user_stocks.loc[(user_stocks["id"] == data["id"]) & (user_stocks["symbol"] == symbol), "quantity"] = current_qty - qty
 
     users.to_excel("users.xlsx", index=False)
     stocks.to_excel("stock_data.xlsx", index=False)
+    user_stocks.to_excel("user_stocks.xlsx", index=False)
     return jsonify(msg=f"{action.upper()} 성공")
 
 @app.route("/api/loan", methods=["POST"])
@@ -174,7 +197,7 @@ def loan():
         data = request.json
         users = pd.read_excel("users.xlsx")
         loans = pd.read_excel("loans.xlsx")
-        user = users[users["id"] == data["id"]]5
+        user = users[users["id"] == data["id"]]
         loan_row = loans[loans["id"] == data["id"]]
 
         if user.empty:
@@ -182,14 +205,22 @@ def loan():
 
         amount = float(data["amount"])
         balance = float(user.iloc[0]["balance"]) if not pd.isna(user.iloc[0]["balance"]) else 0.0
+        loan_val = float(loan_row.iloc[0]["loan"]) if not loan_row.empty and not pd.isna(loan_row.iloc[0]["loan"]) else 0.0
+
+        # 이미 대출이 있으면 중복 대출 불가
+        if loan_val > 0:
+            return jsonify(msg="기존 대출이 남아있으면 추가 대출이 불가합니다.")
+
+        # 대출 한도: 잔액의 150%까지
+        max_loan = balance * 1.5
+        if amount > max_loan:
+            return jsonify(msg=f"대출 한도 초과: 최대 {int(max_loan)}원까지 대출 가능합니다.")
 
         # loan_row가 없으면 새로 추가
         if loan_row.empty:
-            loan_val = 0.0
             loans = pd.concat([loans, pd.DataFrame([{"id": data["id"], "loan": amount}])], ignore_index=True)
         else:
-            loan_val = float(loan_row.iloc[0]["loan"]) if not pd.isna(loan_row.iloc[0]["loan"]) else 0.0
-            loans.loc[loans["id"] == data["id"], "loan"] = loan_val + amount
+            loans.loc[loans["id"] == data["id"], "loan"] = amount
 
         users.loc[users["id"] == data["id"], "balance"] = balance + amount
         users.to_excel("users.xlsx", index=False)
@@ -230,23 +261,56 @@ def repay_loan():
     loans.to_excel("loans.xlsx", index=False)
     return jsonify(msg="대출 상환 완료")
 
+@app.route("/api/user_stocks/<id>", methods=["GET"])
+def user_stocks(id):
+    df = pd.read_excel("user_stocks.xlsx")
+    user_stocks = df[df["id"] == id][["symbol", "quantity"]]
+    # 딕셔너리 리스트로 반환
+    stocks_list = user_stocks.to_dict(orient="records")
+    return jsonify(stocks=stocks_list)
+
 def update_stock_prices():
+    global delisted_stocks
     while True:
         try:
             stocks = pd.read_excel("stock_data.xlsx")
-            # 각 주식 가격을 -5%~+5% 랜덤 변동
+            now = time.time()
+
+            # 기존 종목 가격 변동
             for idx, row in stocks.iterrows():
-                change = random.uniform(-0.05, 0.05)
+                change = random.uniform(-0.10, 0.10)
                 new_price = max(1, row["price"] * (1 + change))
                 stocks.at[idx, "price"] = round(new_price, 2)
+
+            # 상장폐지 종목 추적 및 폐지
+            to_delist = stocks[stocks["price"] <= 150]["symbol"].tolist()
+            for symbol in to_delist:
+                if symbol not in delisted_stocks:
+                    # 폐지시각과 초기가격 기록
+                    init_price = initial_prices.get(symbol, 200.0)
+                    delisted_stocks[symbol] = (now, init_price)
+            stocks = stocks[stocks["price"] > 150].reset_index(drop=True)
+
+            # 2분(120초) 지난 상장폐지 종목 재상장
+            relist = []
+            for symbol, (delist_time, init_price) in list(delisted_stocks.items()):
+                if now - delist_time >= 120:
+                    # 초기가격 ±500 내 랜덤 가격
+                    new_price = round(random.uniform(init_price - 500, init_price + 500), 2)
+                    new_price = max(1, new_price)
+                    stocks = pd.concat([stocks, pd.DataFrame([{"symbol": symbol, "price": new_price}])], ignore_index=True)
+                    relist.append(symbol)
+            for symbol in relist:
+                del delisted_stocks[symbol]
+
             stocks.to_excel("stock_data.xlsx", index=False)
-            shutil.copy("stock_data.xlsx", os.path.join("static", "stock_data.xlsx"))  # static 폴더도 갱신
+            shutil.copy("stock_data.xlsx", os.path.join("static", "stock_data.xlsx"))
         except Exception as e:
             print("Stock price update error:", e)
-        time.sleep(120)  # 5초마다 가격 갱신
+        time.sleep(5)
 
-INTEREST_RATE = 0.058  # 5.8% (원하는 이자율로 조정)
-INTEREST_INTERVAL = 120  # 초 단위
+INTEREST_RATE = 0.01  # 1% (원하는 이자율로 조정)
+INTEREST_INTERVAL = 60  # 초 단위, 예: 60초마다 이자 부과
 
 def apply_loan_interest():
     while True:
@@ -263,14 +327,14 @@ def apply_loan_interest():
             print("Loan interest error:", e)
         time.sleep(INTEREST_INTERVAL)
 
+# 상장폐지 종목 추적: {symbol: (폐지시각, 초기가격)}
+delisted_stocks = {}
+initial_prices = {"AAPL": 150.0, "TSLA": 200.0, "GOOG": 100.0}  # 필요시 확장
+
 # 서버 시작 시 스레드로 주식 가격 변동 시작
 threading.Thread(target=update_stock_prices, daemon=True).start()
 # 서버 시작 시 이자 부과 스레드도 시작
 threading.Thread(target=apply_loan_interest, daemon=True).start()
 
 if __name__ == "__main__":
-    thread = threading.Thread(target=update_stock_prices)
-    thread.daemon = True  # 메인 종료 시 같이 종료되게
-    thread.start()
-    
-    app.run(host='0.0.0.0', port=5000)
+    app.run(debug=True, port=5000)
