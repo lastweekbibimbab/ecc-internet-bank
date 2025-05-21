@@ -174,7 +174,7 @@ def loan():
         data = request.json
         users = pd.read_excel("users.xlsx")
         loans = pd.read_excel("loans.xlsx")
-        user = users[users["id"] == data["id"]]
+        user = users[users["id"] == data["id"]]5
         loan_row = loans[loans["id"] == data["id"]]
 
         if user.empty:
@@ -245,7 +245,7 @@ def update_stock_prices():
             print("Stock price update error:", e)
         time.sleep(120)  # 5초마다 가격 갱신
 
-INTEREST_RATE = 0.58  # 5.8% (원하는 이자율로 조정)
+INTEREST_RATE = 0.058  # 5.8% (원하는 이자율로 조정)
 INTEREST_INTERVAL = 120  # 초 단위
 
 def apply_loan_interest():
@@ -269,7 +269,7 @@ threading.Thread(target=update_stock_prices, daemon=True).start()
 threading.Thread(target=apply_loan_interest, daemon=True).start()
 
 if __name__ == "__main__":
-    thread = threading.Thread(target=update_stock_data)
+    thread = threading.Thread(target=update_stock_prices)
     thread.daemon = True  # 메인 종료 시 같이 종료되게
     thread.start()
     
