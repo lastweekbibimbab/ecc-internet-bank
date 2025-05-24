@@ -337,4 +337,4 @@ threading.Thread(target=update_stock_prices, daemon=True).start()
 threading.Thread(target=apply_loan_interest, daemon=True).start()
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    app.run(debug=False, port=5000)
