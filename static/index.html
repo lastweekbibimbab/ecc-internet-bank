@@ -145,7 +145,6 @@
   <div id="message"></div>
 
   <script>
-    let to_delist = [];
     let currentUserId = null;
 
     function showMessage(msg, success = true) {
@@ -173,7 +172,7 @@
         return;
       }
 
-    fetch("http://34.64.190.35/api/register", {
+    fetch("http://127.0.0.1:5000/api/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id, pw }),
@@ -198,7 +197,7 @@
         return;
       }
 
-      fetch("http://34.64.190.35/api/login", {
+      fetch("http://localhost:5000/api/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id, pw }),
@@ -224,7 +223,7 @@
     // 잔액 조회
     function fetchBalance() {
       if (!currentUserId) return;
-      fetch(`http://34.64.190.35/api/balance/${currentUserId}`)
+      fetch(`http://localhost:5000/api/balance/${currentUserId}`)
         .then(res => res.json())
         .then(data => {
           if (data.balance !== undefined) {
@@ -246,7 +245,7 @@
         return;
       }
 
-      fetch("http://34.64.190.35/api/transfer", {
+      fetch("http://localhost:5000/api/transfer", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ from: currentUserId, to, amount }),
@@ -270,7 +269,7 @@
         showMessage("올바른 대출 금액을 입력하세요.", false);
         return;
       }
-      fetch("http://34.64.190.35/api/loan", {
+      fetch("http://localhost:5000/api/loan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: currentUserId, amount }),
@@ -293,7 +292,7 @@
         showMessage("올바른 상환 금액을 입력하세요.", false);
         return;
       }
-      fetch("http://34.64.190.35/api/repay_loan", {
+      fetch("http://localhost:5000/api/repay_loan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: currentUserId, amount }),
@@ -314,7 +313,7 @@
   const action = document.getElementById("stockAction").value;
   const quantity = Number(document.getElementById("stockQuantity").value);
 
-  fetch("http://34.64.190.35/api/stock/trade", {
+  fetch("http://localhost:5000/api/stock/trade", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -336,7 +335,7 @@
 
     // 주식 가격 실시간 갱신
     function fetchStockPrices() {
-      fetch("http://34.64.190.35/static/stock_data.xlsx")
+      fetch("http://localhost:5000/static/stock_data.xlsx")
         .then(response => response.arrayBuffer())
         .then(buffer => {
           // XLSX 파싱을 위해 SheetJS 라이브러리 필요
@@ -387,7 +386,7 @@ function onLoginSuccess() {
 
 // 내 주식 보유 현황 조회
 function fetchMyStocks() {
-  fetch(`http://34.64.190.35/api/user_stocks/${currentUserId}`)
+  fetch(`http://localhost:5000/api/user_stocks/${currentUserId}`)
     .then(res => res.json())
     .then(data => {
       const ul = document.getElementById("my-stocks-list");
